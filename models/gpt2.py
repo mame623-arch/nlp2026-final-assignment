@@ -50,8 +50,7 @@ class GPT2Model(GPTPreTrainedModel):
     inputs_embeds = None
 
     ### 완성시켜야 할 빈 코드 블록
-    raise NotImplementedError
-
+    inputs_embeds = self.word_embedding(input_ids)
 
     pos_ids = self.position_ids[:, :seq_length]
     pos_embeds = None
@@ -59,7 +58,10 @@ class GPT2Model(GPTPreTrainedModel):
     ### TODO: pos_ids를 사용하여 self.pos_embedding에서 위치 임베딩을 가져와 pos_embeds에 저장한다.
     ###       그런 다음, 두 개의 임베딩을 더하고, 드롭아웃을 적용한 뒤 반환한다.
     ### 완성시켜야 할 빈 코드 블록
-    raise NotImplementedError
+    pos_embeds = self.pos_embedding(pos_ids)
+    embeddings = inputs_embeds + pos_embeds
+
+    return self.embed_dropout(embeddings)
 
 
   def encode(self, hidden_states, attention_mask):
@@ -107,7 +109,7 @@ class GPT2Model(GPTPreTrainedModel):
       return hidden_state(s) * E^T
     """
     ### 완성시켜야 할 빈 코드 블록
-    raise NotImplementedError
+    return torch.matmul(hidden_state, self.word_embedding.weight.transpose(0, 1))
 
 
   @classmethod

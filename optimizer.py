@@ -59,6 +59,37 @@ class AdamW(Optimizer):
                         자세한 내용은 기본 프로젝트 안내문을 참조할 것.
                 '''
                 ### 완성시켜야 할 빈 코드 블록
-                raise NotImplementedError
+                if len(state) == 0:
+                    state["step"] = 0
+                    state["exp_avg"] = torch.zeros_like(p.data) # 1차 모멘트 m_t
+                    state["exp_avg_sq"] = torch.zeros_like(p.data) # 2차 모멘트 v_t
+
+                exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
+                beta1, beta2 = group["betas"]
+                eps = group["eps"]
+                weight_decay = group["weight_decay"]
+                correct_bias = group["correct_bias"]
+                state["step"] += 1
+                step = state["step"]
+
+                # 1. 그래디언트의 1차 모멘트(첫 번째 모멘트)와 2차 모멘트(두 번째 모멘트)를 업데이트.
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1) # m_t = beta1 * m_{t-1} + (1 - beta1) * g_t
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2) # v_t = beta2 * v_{t-1} + (1 - beta2) * g_t^2
+
+                # 2. Bias correction을 적용
+                if correct_bias:
+                    bias_correction1 = 1 - beta1 ** step
+                    bias_correction2 = 1 - beta2 ** step
+                    step_size = alpha * math.sqrt(bias_correction2) / bias_correction1
+                else:
+                    step_size = alpha
+                
+                # 3. 파라미터(p.data)를 업데이트.
+                denom = exp_avg_sq.sqrt() + eps # sqrt(v_t) + eps
+                p.data.addcdiv_(exp_avg, denom, value=-step_size) # p_t = p_{t-1} - step_size(alpha_t) * m_t / (sqrt(v_t) + eps)
+
+                # 4. 그래디언트 기반의 메인 업데이트 후 weight decay 적용.
+                if weight_decay != 0:
+                    p.data.add_(p.data, alpha=-alpha * weight_decay) # p_t = p_t - alpha * weight_decay
 
         return loss

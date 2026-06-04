@@ -1,3 +1,62 @@
+# PART-II — GPT-2 Paraphrase Detection (제출본 · 재현 가이드)
+
+오류 분석에서 연역한 **다중 구조 앙상블(스태커)** 로 Quora paraphrase를 탐지하고,
+동일하게 Quora만으로 학습한 채 **OOD(PAWS·MRPC)** 일반화까지 평가한다.
+
+## 방법 요약
+- **baseline** : GPT-2 cloze (yes/no verbalizer)
+- **ours** : 4멤버 스태커 — `cloze` · `alignment`(ESIM 정렬, scope) · `bi-enc`(임베딩, lexical_gap)
+  · `cloze+외부NLI`(roberta-mnli) 를 **2-fold cross-fit logistic regression** 으로 결합
+- 학습 = **Quora-only** / 평가 = ID(Quora) + OOD(PAWS, MRPC)
+
+## 환경
+```bash
+conda env create -f env.yml
+conda activate nlp_final
+# (선택) LLM judge 재실행 시:  echo "sk-..." > ~/.openai_key
+```
+
+## 재현 순서
+```bash
+# 1) 데이터 — OOD 평가셋 + (비교메소드용) Quora 증강
+python data/get_ood_data.py                              # PAWS·MRPC -> data/*.csv
+python data/augment.py --steps swap bt hardneg merge     # -> data/quora_aug_train.csv
+
+# 2) 학습 + 예측 신호 dump  (small+medium, seed 0/1/2)
+./run.sh
+#   빠른 점검:  SIZES="gpt2" SEEDS="0" EPOCHS=1 ./run.sh
+
+# 3) 결과표 (ID/OOD, baseline/비교/ours, seed 평균±std)
+python analysis/make_tables.py --metrics acc f1 mcc
+
+# 4) 분석
+python analysis/judge.py                                 # (선택) 없으면 judge_cache.csv 사용
+python analysis/error_analysis.py --size gpt2 --seed 0   # 천장분해·상보성·표적회수·κ
+python analysis/visualize_attention.py --ckpt checkpoints/align-step3-gpt2-s0.pt \
+    --s1 "How to learn Python" --s2 "How to learn Python for data science" --out figures/attn.png
+```
+
+## 주요 파일
+```
+paraphrase_detection.py   cloze 학습/평가  (--prompt_style --symmetric_eval
+                          --balanced_sampler --prior_calibration --lm_lambda)
+alignment_paraphrase.py   ours: alignment(--ablation_step 3) / bi-enc(--ablation_step 1)
+datasets.py               데이터 로더 + cloze PROMPT_TEMPLATES
+metrics.py                metric 후보 (acc·f1·mcc·bal_acc·auroc·auprc·kappa)
+run.sh                    학습 + dump 일괄
+data/get_ood_data.py      PAWS·MRPC 다운로드          data/augment.py  Quora 증강
+analysis/extract_signals.py  ckpt → 신호 csv          analysis/make_tables.py  결과표
+analysis/judge.py            LLM judge                analysis/error_analysis.py  분석
+analysis/visualize_attention.py  attention heatmap
+```
+
+## 비교 메소드 (택2)
+데이터 증강 / prompt 변경(`--prompt_style`) / symmetric(`--symmetric_eval`)
+/ prior calibration / 보조 LM loss(`--lm_lambda`) 중 선택 — 어느 단일 축도 천장을 못 뚫고
+**아키텍처 다양성(ours)만 유효**함을 대비한다.
+
+---
+
 # 자연어처리 2026-1 지정주제 기말 프로젝트: GPT-2 구축
 
 ## PART-I:

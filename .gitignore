@@ -5,3 +5,23 @@
 *.pkl
 .idea/
 out/
+__pycache__/
+
+# 작업 공간 — claude로 받는 중간보고서(html 등)·작업 중 임시 코드. git 제외, 로컬에선 폴더째 삭제.
+_workspace/
+
+# 학습·추론 산출물 (run.sh / analysis 로 재생성)
+checkpoints/
+predictions/
+figures/
+wandb/
+logs/
+
+# 코드로 받아오는 데이터 (data/get_ood_data.py, data/augment.py 로 재생성)
+data/paws_*.csv
+data/mrpc_*.csv
+data/quora_aug_train.csv
+data/quora_train_bt.csv
+data/quora_train_hardneg.csv
+data/quora_train_swap.csv
+

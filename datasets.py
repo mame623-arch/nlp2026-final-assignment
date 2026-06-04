@@ -24,10 +24,34 @@ def preprocess_string(s):
                   .split())
 
 
+# cloze prompt 템플릿. 'default' = 학습·평가에 실제 사용하는 기본 prompt.
+# 'prompt 변경' 비교메소드용으로 나머지 스타일 제공. (--prompt_style 로 선택)
+PROMPT_TEMPLATES = {
+  'default':      'Question 1: "{s1}"\nQuestion 2: "{s2}\nAre these questions asking the same thing?\n',
+  'original':     'Is "{s1}" a paraphrase of "{s2}"? Answer "yes" or "no": ',
+  'same_meaning': 'Question 1: {s1}\nQuestion 2: {s2}\nDo these two questions have the same meaning? Answer: ',
+  'semantic':     'Determine whether the following two questions are semantically equivalent.\nQuestion A: {s1}\nQuestion B: {s2}\nAnswer: ',
+  'duplicate':    'Question 1: {s1}\nQuestion 2: {s2}\nAre these duplicate questions? Answer: ',
+  'fewshot': (
+    'Example 1:\nQuestion 1: How do I learn Python?\nQuestion 2: What is the best way to study Python?\nAnswer: yes\n\n'
+    'Example 2:\nQuestion 1: How do I learn Python?\nQuestion 2: How do I cook pasta?\nAnswer: no\n\n'
+    'Now classify:\nQuestion 1: {s1}\nQuestion 2: {s2}\nAnswer: '
+  ),
+}
+
+
+def build_cloze_sents(sent1, sent2, prompt_style='default'):
+  """prompt_style 템플릿으로 (s1,s2) 쌍을 cloze 입력 문자열 리스트로 변환."""
+  template = PROMPT_TEMPLATES[prompt_style]
+  return [template.format(s1=s1, s2=s2) for s1, s2 in zip(sent1, sent2)]
+
+
 class ParaphraseDetectionDataset(Dataset):
-  def __init__(self, dataset, args):
+  def __init__(self, dataset, args, swap=False):
     self.dataset = dataset
     self.p = args
+    self.swap = swap
+    self.prompt_style = getattr(args, 'prompt_style', 'default')
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -40,13 +64,14 @@ class ParaphraseDetectionDataset(Dataset):
   def collate_fn(self, all_data):
     sent1 = [x[0] for x in all_data]
     sent2 = [x[1] for x in all_data]
+    if self.swap:
+      sent1, sent2 = sent2, sent1
     # labels = torch.LongTensor([x[2] for x in all_data])
     labels = ['yes' if label == 1 else 'no' for label in [x[2] for x in all_data]]
     labels = self.tokenizer(labels, return_tensors='pt', padding=True, truncation=True)['input_ids']
     sent_ids = [x[3] for x in all_data]
 
-    cloze_style_sents = [f'Question 1: "{s1}"\nQuestion 2: "{s2}\nAre these questions asking the same thing?\n' for
-                         (s1, s2) in zip(sent1, sent2)]
+    cloze_style_sents = build_cloze_sents(sent1, sent2, self.prompt_style)
     encoding = self.tokenizer(cloze_style_sents, return_tensors='pt', padding=True, truncation=True)
 
     token_ids = torch.LongTensor(encoding['input_ids'])
@@ -63,9 +88,11 @@ class ParaphraseDetectionDataset(Dataset):
 
 
 class ParaphraseDetectionTestDataset(Dataset):
-  def __init__(self, dataset, args):
+  def __init__(self, dataset, args, swap=False):
     self.dataset = dataset
     self.p = args
+    self.swap = swap
+    self.prompt_style = getattr(args, 'prompt_style', 'default')
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -78,10 +105,11 @@ class ParaphraseDetectionTestDataset(Dataset):
   def collate_fn(self, all_data):
     sent1 = [x[0] for x in all_data]
     sent2 = [x[1] for x in all_data]
+    if self.swap:
+      sent1, sent2 = sent2, sent1
     sent_ids = [x[2] for x in all_data]
 
-    cloze_style_sents = [f'Is "{s1}" a paraphrase of "{s2}"? Answer "yes" or "no": ' for (s1, s2) in
-                         zip(sent1, sent2)]
+    cloze_style_sents = build_cloze_sents(sent1, sent2, self.prompt_style)
 
     encoding = self.tokenizer(cloze_style_sents, return_tensors='pt', padding=True, truncation=True)
 
@@ -100,7 +128,7 @@ class ParaphraseDetectionTestDataset(Dataset):
 def load_paraphrase_data(paraphrase_filename, split='train'):
   paraphrase_data = []
   if split == 'test':
-    with open(paraphrase_filename, 'r') as fp:
+    with open(file=paraphrase_filename, mode='r', encoding="utf-8-sig") as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         sent_id = record['id'].lower().strip()
         paraphrase_data.append((preprocess_string(record['sentence1']),
@@ -108,7 +136,7 @@ def load_paraphrase_data(paraphrase_filename, split='train'):
                                 sent_id))
 
   else:
-    with open(paraphrase_filename, 'r') as fp:
+    with open(file=paraphrase_filename, mode='r', encoding="utf-8-sig") as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         try:
           sent_id = record['id'].lower().strip()
@@ -131,7 +159,7 @@ class SonnetsDataset(Dataset):
 
   def _load_sonnets(self, file_path):
     """Reads the file and extracts individual sonnets."""
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file=file_path, mode='r', encoding='utf-8') as f:
       text = f.read()
 
     # Split sonnets based on numbering pattern (e.g., "\n\n1\n\n")
