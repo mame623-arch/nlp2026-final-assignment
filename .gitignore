@@ -10,12 +10,15 @@ __pycache__/
 # 작업 공간 — claude로 받는 중간보고서(html 등)·작업 중 임시 코드. git 제외, 로컬에선 폴더째 삭제.
 _workspace/
 
-# 학습·추론 산출물 (run.sh / analysis 로 재생성)
+# 학습 산출물 — 모델은 용량 커서 서버 간 공유 안 함 (run.sh 로 재생성)
 checkpoints/
-predictions/
 figures/
 wandb/
 logs/
+# predictions/ 는 서버 간 공유 위해 git 추적 (파일명이 config로 네임스페이싱되어 충돌 적음)
+# 단, 모델성 큰 파일은 아래에서 콕 집어 제외
+predictions/*.pt
+predictions/*.pkl
 
 # 코드로 받아오는 데이터 (data/get_ood_data.py, data/augment.py 로 재생성)
 data/paws_*.csv
