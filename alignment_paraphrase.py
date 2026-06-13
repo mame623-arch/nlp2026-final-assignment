@@ -227,11 +227,12 @@ def train(args):
       labels = batch['labels'].to(device)
 
       optimizer.zero_grad()
-      logits, v1, v2 = model(ids1, mask1, ids2, mask2, cids, cmask)
-      loss = F.cross_entropy(logits, labels)
-      if args.contrastive_lambda > 0:
-        tgt = (labels * 2 - 1).float()  # 1 / -1
-        loss = loss + args.contrastive_lambda * cos_loss(v1, v2, tgt)
+      with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=getattr(args, 'bf16', False)):
+        logits, v1, v2 = model(ids1, mask1, ids2, mask2, cids, cmask)
+        loss = F.cross_entropy(logits, labels)
+        if args.contrastive_lambda > 0:
+          tgt = (labels * 2 - 1).float()  # 1 / -1
+          loss = loss + args.contrastive_lambda * cos_loss(v1, v2, tgt)
       loss.backward()
       torch.nn.utils.clip_grad_norm_([p for g in groups for p in g['params']], 1.0)
       optimizer.step()
@@ -328,6 +329,7 @@ def get_args():
   p.add_argument('--max_dev', type=int, default=0)
   p.add_argument('--seed', type=int, default=11711)
   p.add_argument('--use_gpu', action='store_true')
+  p.add_argument('--bf16', action='store_true', help='BF16 autocast 학습 가속(H100 등). 기본 off.')
   p.add_argument('--filepath', default='')
   p.add_argument('--eval_only', action='store_true')
   return p.parse_args()

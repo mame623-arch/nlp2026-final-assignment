@@ -3,6 +3,13 @@
 오류 분석에서 연역한 **다중 구조 앙상블(스태커)** 로 Quora paraphrase를 탐지하고,
 동일하게 Quora만으로 학습한 채 **OOD(PAWS·MRPC)** 일반화까지 평가한다.
 
+## 데이터셋 & 실행 파이프라인 (채점 실행 안내)
+- **Quora(QQP)**: 과제 제공본을 그대로 리포지토리에 포함한다 (`data/quora-{train,dev,test-student}.csv`).
+- **OOD(PAWS·MRPC)**: 리포지토리에 포함하지 않고 `python data/get_ood_data.py` 로 HuggingFace에서 내려받아 `data/` 에 생성한다(학습에는 쓰지 않는 평가 전용).
+- **증강(비교메소드용)**: `python data/augment.py` 로 `data/quora_aug_train.csv` 생성.
+- 학습/평가 진입점(`run.sh`, `run_h100.sh`)은 **OOD 파일이 없으면 자동으로 `get_ood_data.py` 를 먼저 실행**하므로, 데이터 준비 미비로 인한 실행 실패가 없도록 설계되어 있다.
+- 모든 데이터 처리(다운로드·전처리·분할·로드)는 `datasets.py` + `data/get_ood_data.py` + `data/augment.py` 파이프라인으로 코드화되어 있다.
+
 ## 방법 요약
 - **baseline** : GPT-2 cloze (yes/no verbalizer)
 - **ours** : 4멤버 스태커 — `cloze` · `alignment`(ESIM 정렬, scope) · `bi-enc`(임베딩, lexical_gap)
@@ -22,15 +29,16 @@ conda activate nlp_final
 python data/get_ood_data.py                              # PAWS·MRPC -> data/*.csv
 python data/augment.py --steps swap bt hardneg merge     # -> data/quora_aug_train.csv
 
-# 2) 학습 + 예측 신호 dump  (small+medium, seed 0/1/2)
-./run.sh
+# 2) 학습 + 예측 신호 dump
+./run.sh                                                 # 표준 (small+medium, seed 0/1/2)
+bash run_h100.sh                                         # H100 재실험 (BF16+배치64, seed 0, OOD/증강 자동준비)
 #   빠른 점검:  SIZES="gpt2" SEEDS="0" EPOCHS=1 ./run.sh
 
-# 3) 결과표 (ID/OOD, baseline/비교/ours, seed 평균±std)
+# 3) 결과표 (ID/OOD, baseline/비교/ours)
 python analysis/make_tables.py --metrics acc f1 mcc
 
 # 4) 분석
-python analysis/judge.py                                 # (선택) 없으면 judge_cache.csv 사용
+python analysis/judge.py                                 # (선택) LLM judge. 미실행 시 analysis/judge_cache.csv 사용
 python analysis/error_analysis.py --size gpt2 --seed 0   # 천장분해·상보성·표적회수·κ
 python analysis/visualize_attention.py --ckpt checkpoints/align-step3-gpt2-s0.pt \
     --s1 "How to learn Python" --s2 "How to learn Python for data science" --out figures/attn.png

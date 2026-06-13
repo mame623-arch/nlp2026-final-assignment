@@ -211,21 +211,22 @@ def train(args):
       labels = labels.to(device)
 
       # 손실, 그래디언트를 계산하고 grad_accum 단위로 파라미터 업데이트.
-      if use_lm_loss:
-        # 분류 손실 + 보조 LM(next-token) 손실. lm_lambda 로 가중.
-        logits, lm_logits = model(b_ids, b_mask, return_lm_logits=True)
-        shift_logits = lm_logits[:, :-1, :].contiguous()
-        shift_labels = b_ids[:, 1:].contiguous()
-        shift_mask = b_mask[:, 1:].contiguous()
-        shift_labels = shift_labels.masked_fill(shift_mask == 0, -100)  # padding ignore
-        lm_loss = F.cross_entropy(
-            shift_logits.view(-1, shift_logits.size(-1)),
-            shift_labels.view(-1), ignore_index=-100, reduction='mean')
-        class_loss = F.cross_entropy(logits, labels, reduction='mean')
-        loss = class_loss + args.lm_lambda * lm_loss
-      else:
-        logits = model(b_ids, b_mask)
-        loss = F.cross_entropy(logits, labels, reduction='mean')
+      with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=getattr(args, 'bf16', False)):
+        if use_lm_loss:
+          # 분류 손실 + 보조 LM(next-token) 손실. lm_lambda 로 가중.
+          logits, lm_logits = model(b_ids, b_mask, return_lm_logits=True)
+          shift_logits = lm_logits[:, :-1, :].contiguous()
+          shift_labels = b_ids[:, 1:].contiguous()
+          shift_mask = b_mask[:, 1:].contiguous()
+          shift_labels = shift_labels.masked_fill(shift_mask == 0, -100)  # padding ignore
+          lm_loss = F.cross_entropy(
+              shift_logits.view(-1, shift_logits.size(-1)),
+              shift_labels.view(-1), ignore_index=-100, reduction='mean')
+          class_loss = F.cross_entropy(logits, labels, reduction='mean')
+          loss = class_loss + args.lm_lambda * lm_loss
+        else:
+          logits = model(b_ids, b_mask)
+          loss = F.cross_entropy(logits, labels, reduction='mean')
       preds = torch.argmax(logits, dim=1)
       (loss / args.grad_accum).backward()
       if (step_i + 1) % args.grad_accum == 0:
@@ -373,6 +374,7 @@ def get_args():
   parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
+  parser.add_argument("--bf16", action="store_true", help="BF16 autocast 학습 가속(H100 등). 기본 off.")
 
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
