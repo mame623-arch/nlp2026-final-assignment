@@ -7,7 +7,7 @@
 - **Quora(QQP)**: 과제 제공본을 그대로 리포지토리에 포함한다 (`data/quora-{train,dev,test-student}.csv`).
 - **OOD(PAWS·MRPC)**: 리포지토리에 포함하지 않고 `python data/get_ood_data.py` 로 HuggingFace에서 내려받아 `data/` 에 생성한다(학습에는 쓰지 않는 평가 전용).
 - **증강(비교메소드용)**: `python data/augment.py` 로 `data/quora_aug_train.csv` 생성.
-- 학습/평가 진입점(`run.sh`, `run_h100.sh`)은 **OOD 파일이 없으면 자동으로 `get_ood_data.py` 를 먼저 실행**하므로, 데이터 준비 미비로 인한 실행 실패가 없도록 설계되어 있다.
+- 학습/평가 진입점(`run.sh`)은 **OOD 파일이 없으면 자동으로 `get_ood_data.py` 를 먼저 실행**하므로, 데이터 준비 미비로 인한 실행 실패가 없도록 설계되어 있다.
 - 모든 데이터 처리(다운로드·전처리·분할·로드)는 `datasets.py` + `data/get_ood_data.py` + `data/augment.py` 파이프라인으로 코드화되어 있다.
 
 ## 방법 요약
@@ -31,7 +31,6 @@ python data/augment.py --steps swap bt hardneg merge     # -> data/quora_aug_tra
 
 # 2) 학습 + 예측 신호 dump
 ./run.sh                                                 # 표준 (small+medium, seed 0/1/2)
-bash run_h100.sh                                         # H100 재실험 (BF16+배치64, seed 0, OOD/증강 자동준비)
 #   빠른 점검:  SIZES="gpt2" SEEDS="0" EPOCHS=1 ./run.sh
 
 # 3) 결과표 (ID/OOD, baseline/비교/ours)
