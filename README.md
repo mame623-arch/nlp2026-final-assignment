@@ -30,6 +30,7 @@ python data/get_ood_data.py                              # PAWS·MRPC -> data/*.
 python data/augment.py --steps swap bt hardneg merge     # -> data/quora_aug_train.csv
 
 # 2) 학습 + 예측 신호 dump
+#    ※ predictions/ 에 신호 dump(*-gpt2*-s0-*.csv, external-*.csv)가 이미 있으면 이 단계는 건너뛰고 바로 3)으로 — 재학습은 기존 결과를 덮어쓰며 수십 시간 소요.
 ./run.sh                                                 # 표준 (small+medium, seed 0/1/2)
 #   빠른 점검:  SIZES="gpt2" SEEDS="0" EPOCHS=1 ./run.sh
 
